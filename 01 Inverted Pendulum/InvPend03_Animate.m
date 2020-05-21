@@ -1,4 +1,4 @@
-function Animate_InvPendulum(t,xx,u,u_min,u_max,J,fname)
+function InvPend03_Animate(t,xx,u,u_min,u_max,J,fname)
 
 % animation credits to Renato Coral, UnB
 % link to thesis: https://repositorio.unb.br/bitstream/10482/34629/1/2018_RenatoCoralSampaio.pdf
