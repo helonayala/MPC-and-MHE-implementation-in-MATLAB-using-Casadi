@@ -46,13 +46,16 @@ p      = SX.sym('p');
 th     = SX.sym('th');
 p_dot  = SX.sym('p_dot'); 
 th_dot = SX.sym('th_dot');
+u = SX.sym('u');
+U = SX.sym('U',n_controls,N); % Decision variables (controls)
+P = SX.sym('P',n_states + n_states); % parameters (which include the initial and the reference state of the robot)
+X = SX.sym('X',n_states,(N+1)); % A Matrix that represents the states over the optimization problem.
 
 states = [p;
           th;
           p_dot;
           th_dot];
 
-u = SX.sym('u');
 controls = u; 
 
 % system r.h.s (state equations)
@@ -62,17 +65,12 @@ rhs = [p_dot;
        -(gamma*th_dot - g*l*m*sin(th) + (l*m*cos(th)*(l*m*sin(th)*th_dot^2 - u + c*p_dot))/(M + m))/(J + l^2*m - (l^2*m^2*cos(th)^2)/(M + m))];
 
 f = Function('f',{states,controls},{rhs}); % nonlinear mapping function f(x,u)
-U = SX.sym('U',n_controls,N); % Decision variables (controls)
-P = SX.sym('P',n_states + n_states);
-% parameters (which include the initial and the reference state of the robot)
-
-X = SX.sym('X',n_states,(N+1));
-% A Matrix that represents the states over the optimization problem.
 
 % compute solution symbolically
 X(:,1) = P(1:n_states); % initial state
 for k = 1:N
-    st = X(:,k);  con = U(:,k);
+    st = X(:,k);
+    con = U(:,k);
     f_value  = f(st,con);
     st_next  = st + (T*f_value); % Euler derivative approximation
     X(:,k+1) = st_next;
@@ -85,7 +83,8 @@ g = [];  % constraints vector
 
 % compute objective
 for k=1:N
-    st = X(:,k);  con = U(:,k);
+    st = X(:,k);  
+    con = U(:,k);
     obj = obj+(st-P(n_states+1:end))'*Q*(st-P(n_states+1:end)) + con'*R*con; % calculate obj
 end
 obj = obj + diff(U)*Rf*diff(U)'; % penalize delta u
@@ -151,7 +150,7 @@ while(norm((x0-xs),2) > 1e-2 && mpciter < sim_tim / T)
     
     u_cl= [u_cl ; u(1,:)];
     t(mpciter+1) = t0;
-    [t0, x0, u0] = shift(T, t0, x0, u,f); % get the initialization of the next optimization step
+    [t0, x0, u0] = f_shift(T, t0, x0, u,f); % get the initialization of the next optimization step
     
     xx(:,mpciter+2) = x0; 
     J(:,mpciter+1) = full(sol.f);   % keeps cost function value
@@ -170,7 +169,7 @@ xx = xx(:,1:end-1);
 close all
 ttl = {'p','th','p dot','th dot'};
 
-fname = ['MPC_pend_N_' num2str(N) '_T_' num2str(T)];
+fname = ['MPC_sing_shooting_N_' num2str(N) '_T_' num2str(T)];
 
 figure(1)
 for i =1:n_states
@@ -188,8 +187,8 @@ yline(0,'r--','linewidth',1.5),
 yline(u_min,'r--','linewidth',1.5),
 grid on
 title('u')
-saveas(gcf,[fname '.png'])
+% saveas(gcf,[fname '.png'])
 
-Animate_InvPendulum(t,xx,u_cl,u_min,u_max,J,[fname '.avi']) % generate animation
+% f_animate(t,xx,u_cl,u_min,u_max,J,[fname '.avi']) % generate animation
 % 
 % implay(fname,60)
