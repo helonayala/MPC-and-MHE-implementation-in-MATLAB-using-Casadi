@@ -1,4 +1,4 @@
-%% Single shooting MPC for the classical swing-up inverted pendulum problem
+%% Multiple shooting MPC for the classical swing-up inverted pendulum problem
 % fork from https://github.com/MMehrez/MPC-and-MHE-implementation-in-MATLAB-using-Casadi
 % all MPC with CASADI code, credits to Mohamed
 
@@ -11,6 +11,7 @@ clear
 close all
 clc
 
+% addpath(genpath('/home/helon/Documents/MATLAB/casadi/'));
 import casadi.* % import casadi libs (make sure its on path)
 
 % define the MPC - optimal control problem
@@ -93,7 +94,7 @@ for k=1:N
     st_next_euler = st+ (T*f_value);
     g = [g;st_next-st_next_euler]; % compute constraints
 end
-obj = obj + diff(U)*Rf*diff(U)'; % penalize delta u
+% obj = obj + diff(U)*Rf*diff(U)'; % penalize delta u
 
 % make the decision variable one column vector
 OPT_variables = [reshape(X,n_states*(N+1),1);reshape(U,n_controls*N,1)];
@@ -111,16 +112,16 @@ solver = nlpsol('solver', 'ipopt', nlp_prob,opts);
 
 args = struct;
 
-args.lbg(1:n_states*(N+1)) = 0;  % -1e-20  % Equality constraints
-args.ubg(1:n_states*(N+1)) = 0;  % 1e-20   % Equality constraints
+args.lbg = zeros(1,n_states*(N+1)); % Equality constraints
+args.ubg = zeros(1,n_states*(N+1)); 
 
 args.lbx = zeros(1,n_states*(N+1) + n_controls*N);
 args.ubx = zeros(1,n_states*(N+1) + n_controls*N);
 
 args.lbx(1:n_states*(N+1)) = -inf;  % state constraints
 args.ubx(1:n_states*(N+1)) = inf;     
-args.lbx(n_states*(N+1)+1:end,1)   = u_min; % input constraints
-args.ubx(n_states*(N+1)+1:end:N,1) = u_max;
+args.lbx(n_states*(N+1)+1:end) = u_min; % input constraints
+args.ubx(n_states*(N+1)+1:end) = u_max;
 
 % run MPC
 t0 = 0;
