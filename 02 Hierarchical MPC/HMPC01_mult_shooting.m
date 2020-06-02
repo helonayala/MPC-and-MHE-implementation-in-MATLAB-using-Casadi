@@ -14,74 +14,93 @@ import casadi.* % import casadi libs (make sure its on path)
 % define the MPC - optimal control problem
 
 % model parameters -- single-link robot (Astrom p. 156) - sist lento ts = 20
-% J1 = 10/9;
-% J2 = 10;
-% d = 0.1;
-% ki = 1;
-% w0 = 1;
-% alpha = J1/(J1+J2);
-% beta1 = d/(J1*w0);
-% beta2 = d/(J2*w0);
-% gamma = ki/(J1*w0);
-% % delta = 1/(J1*w0);
-% 
-% A = w0 * [0 1 -1;
-%           alpha-1   -beta1    beta1;
-%           alpha      beta2   -beta2]; 
-% B = [0;gamma;0];
-% C = [0 0 w0];
+J1 = 10/9;
+J2 = 10;
+d = 0.1;
+ki = 1;
+w0 = 1;
+alpha = J1/(J1+J2);
+beta1 = d/(J1*w0);
+beta2 = d/(J2*w0);
+gamma = ki/(J1*w0);
+% delta = 1/(J1*w0);
+
+A = w0 * [0 1 -1;
+          alpha-1   -beta1    beta1;
+          alpha      beta2   -beta2]; 
+B = [0;gamma;0];
+C = [0 0 w0];
+D = 0;
+
+Mo = [A B;
+    -C 0]
+
+det(Mo)
+
+mu = [-5 -20 -21 -22];
+
+% projeto com integrador no ramo MA
+Ah = [A zeros(3,1);-C 0]; 
+Bh = [B;0];
+Kh = place(Ah, Bh,mu);
+K  = Kh(1:3);
+ki = -Kh(4);
+
+% sist MF
+A2 = [A-B*K   B*ki;
+      -C 0];
+B2 = [0;0;0;1];
+C2 = [eye(4);   % x, epsilon
+      -K ki];   % u
+D2 = zeros(5,1);
+
+
+% %%
+% mu = [-5 -5 -20];
+% k = 50; m = 20;
+% A = [0 1;-k/m 0];
+% B = [0;1/m];
+% C = [1 0];
 % D = 0;
+% 
+% % projeto com integrador no ramo MA
+% Ah = [A zeros(2,1);-C 0]; 
+% Bh = [B;0];
+% Kh = acker(Ah, Bh,mu);
+% K  = Kh(1:2);
+% ki = -Kh(3);
+% 
+% % sist MF
+% A2 = [A-B*K   B*ki;
+%       -C 0];
+% B2 = [0;0;1];
+% C2 = [eye(3);   % x, epsilon
+%       -K ki];   % u
+% D2 = zeros(4,1);
 
-k = 10; m = 0.1; b = 1;
-A1 = [0 1;-k/m -b/m]; B1 = [0;1/m];
-C1 = [1 0]; D1 = 0;
+sysMA = ss(A,B,C,D);
+sysMF = ss(A2,B2,C2,D2);
 
-Kp = 5;
-Ki = 60;
-
-A2 = [A1 - B1*C1*Kp B1*Ki;
-    -C1 0];
-B2 = [B1*Kp;1];
-C2 = [C1 0];
-D2 = D1;
-
-sys1 = ss(A1,B1,C1,D1);
-sys2 = ss(A2,B2,C2,D2);
-
-step(sys1,sys2)
-legend('Open loop','PI')
-% step(sys2)
-
-% TODO 
-% - 1st order system (gain \neq 1)
-% - single-link test
-
-% impulse(sysSS)
+step(sysMA,sysMF,5);
+legend('Open loop','CL')
 
 %%
-
-n_states = 4;
+n_states = 5;
 n_controls = 1;
-M = 10;
-m = 80;
-c = 0.1;
-J = 100;
-l = 1;
-gamma = 0.01;
-g = 9.8;
 
 % simulation parameters
-x0 = [0 ; pi; 0; 0];    % initial condition  = pendulum facing down
-xs = zeros(n_states,1); % setpoint = desired final position (pendulum up)
+x0 = zeros(n_states,1);   % initial condition  = pendulum facing down
+w2s = 1; % 1 rad/s
+xs = w2s;   % setpoint = desired velocity in the robot arm
+
 T = 0.01; % sampling time [s]
 sim_tim = 20; % Maximum simulation time
-u_max = 800; u_min = -u_max;        % force constraint (N)
+u_max = 10; u_min = -u_max;        % force constraint (N)
 
 % MPC parameterization
 N = 200; % prediction horizon (2 seconds)
-Q = zeros(n_states); % weighing matrices (states)
-Q(2,2) = 100; % greater penalty for theta
-Q([1 3 4],[1 3 4]) = 1; 
+Q = eye(n_states); % weighing matrices (states)
+Q(3,3) = 100; % greater penalty for w3
 R = zeros(n_controls); % weighing matrices (controls)
 Rf = 0; % weighing matrices delta U
 
@@ -90,23 +109,18 @@ p      = SX.sym('p');
 th     = SX.sym('th');
 p_dot  = SX.sym('p_dot'); 
 th_dot = SX.sym('th_dot');
-u = SX.sym('u');
+
+x = SX.sym('x',n_states);
+u = SX.sym('u',n_controls);
 U = SX.sym('U',n_controls,N); % Decision variables (controls)
 P = SX.sym('P',n_states + n_states); % parameters (which include the initial and the reference state of the robot)
 X = SX.sym('X',n_states,(N+1)); % A Matrix that represents the states over the optimization problem.
 
-states = [p;
-          th;
-          p_dot;
-          th_dot];
-
+states = x;
 controls = u; 
 
 % system r.h.s (state equations)
-rhs = [p_dot;
-       th_dot;
-       -(c*p_dot - u + l*m*th_dot^2*sin(th) + (l*m*cos(th)*(gamma*th_dot - g*l*m*sin(th)))/(m*l^2 + J))/(M + m - (l^2*m^2*cos(th)^2)/(m*l^2 + J));
-       -(gamma*th_dot - g*l*m*sin(th) + (l*m*cos(th)*(l*m*sin(th)*th_dot^2 - u + c*p_dot))/(M + m))/(J + l^2*m - (l^2*m^2*cos(th)^2)/(M + m))];
+rhs = A2*x + B2*u;
 
 f = Function('f',{states,controls},{rhs}); % nonlinear mapping function f(x,u)
 % 
