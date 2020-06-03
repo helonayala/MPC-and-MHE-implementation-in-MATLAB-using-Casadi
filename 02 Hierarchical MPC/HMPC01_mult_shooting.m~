@@ -111,10 +111,10 @@ sim_tim = 5; % Maximum simulation time
 u_max = 100; u_min = -u_max; % motor current
 
 % MPC parameterization
-N = 100; % prediction horizon (2 seconds)
+N = 10; % prediction horizon (2 seconds)
 Q = 100; % greater penalty for setpoint velocity
 R = 0;   % weighing matrices (controls)
-Rf = 1;  % weighing matrices delta U
+Rf = 0;  % weighing matrices delta U
 
 % modeling with Casadi
 x = SX.sym('x',n_states);
@@ -244,11 +244,15 @@ while (mpciter < sim_tim / T)
     fprintf('Iter %d out of %d\n',mpciter,sim_tim / T)
     mpciter = mpciter + 1;
 end
+main_loop_time   = toc(main_loop);
+ss_error         = norm((x0-xs),2);
+average_mpc_time = main_loop_time/(mpciter+1);
 
 xx = xx(:,1:end-1);
 
 %% plot
 close all
+ttl = {'p','th','p dot','th dot'};
 
 fname = ['MPC_sing_shooting_N_' num2str(N) '_T_' num2str(T)];
 
@@ -256,16 +260,16 @@ figure(1)
 for i =1:n_states
     subplot(n_states+1,1,i)
     plot(t,xx(i,:),'k','linewidth',2), hold on
-%     yline(xs(i),'r--','linewidth',1.5),
+    yline(xs(i),'r--','linewidth',1.5),
     grid on
     hold off
-%     title(ttl{i})
+    title(ttl{i})
 end
 subplot(n_states+1,1,i+1)
 plot(t,u_cl,'k','linewidth',2), hold on
-% yline(u_max,'r--','linewidth',1.5),
+yline(u_max,'r--','linewidth',1.5),
 yline(0,'r--','linewidth',1.5),
-% yline(u_min,'r--','linewidth',1.5),
+yline(u_min,'r--','linewidth',1.5),
 grid on
 title('u')
 % saveas(gcf,[fname '.png'])
