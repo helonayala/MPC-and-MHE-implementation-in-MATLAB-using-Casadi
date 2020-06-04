@@ -252,22 +252,34 @@ close all
 
 fname = ['MPC_sing_shooting_N_' num2str(N) '_T_' num2str(T)];
 
+ulin = [-K ki]*xx;
+
 figure(1)
-for i =1:n_states
-    subplot(n_states+1,1,i)
-    plot(t,xx(i,:),'k','linewidth',2), hold on
-%     yline(xs(i),'r--','linewidth',1.5),
-    grid on
-    hold off
-%     title(ttl{i})
-end
-subplot(n_states+1,1,i+1)
-plot(t,u_cl,'k','linewidth',2), hold on
-% yline(u_max,'r--','linewidth',1.5),
-yline(0,'r--','linewidth',1.5),
-% yline(u_min,'r--','linewidth',1.5),
+subplot(4,1,1)
+plot(t,xx(1,:),'k','linewidth',2), hold on
 grid on
-title('u')
+hold off
+title('phi1-phi2')
+
+subplot(4,1,2)
+plot(t,[xx(2,:)],'k','linewidth',2), hold on
+grid on
+hold off
+legend('w1','w2','ref')
+
+subplot(4,1,3)
+plot(t,ulin,'k','linewidth',2), hold on
+grid on
+hold off
+legend('u')
+
+subplot(4,1,4)
+plot(t,[xx(3:4,:);u_cl'],'linewidth',2), hold on
+yline(w2s,'r--','linewidth',2)
+grid on
+hold off
+legend('w2','xi','ref (MPC output)','ref w2')
+
 % saveas(gcf,[fname '.png'])
 
 % f_animate(t,xx,u_cl,u_min,u_max,J,[fname '.avi']) % generate animation
